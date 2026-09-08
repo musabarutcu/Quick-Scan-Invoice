@@ -20,13 +20,11 @@
 
 Yükleme anında devreye önce **Tesseract OCR** giriyor ve görseldeki ham metni çıkarıyor. Ardından bu metin **Google Gemini** modeline gönderiliyor; Gemini tedarikçi adını, tarihi, toplam tutarı ve fatura kalemlerini ayıklayıp yapılandırılmış, doğrulanmış bir veriye dönüştürüyor. En sonunda her kalem, önceden tanımlı muhasebe kategorilerinden birine otomatik olarak eşleniyor.
 
-Bu işlemin hiçbiri kullanıcıyı bekletmiyor. Dosya yüklendiği anda arka planda bir görev (`BackgroundTask`) başlıyor ve API anında yanıt dönüyor; arayüz de sonucu birkaç saniyede bir polling ile kontrol edip OCR + AI işlemi bittiğinde ekranı güncelliyor. Kısacası "hızlı tara, gerisini bize bırak" mantığı — QuickScan ismi de tam olarak buradan geliyor.
-
+Bu işlemin hiçbiri kullanıcıyı bekletmiyor. Dosya yüklendiği anda arka planda bir görev (`BackgroundTask`) başlıyor ve API anında yanıt dönüyor; arayüz de sonucu birkaç saniyede bir polling ile kontrol edip OCR + AI işlemi bittiğinde ekranı güncelliyor.
 ---
 
 ## Kullanılan Teknolojiler
 
-Proje, her katmanda bilinçli olarak seçilmiş, birbirini tamamlayan bir teknoloji yığını üzerine kuruldu:
 
 | Teknoloji | Ne İşe Yarıyor | Neden Bu Seçildi |
 |---|---|---|
