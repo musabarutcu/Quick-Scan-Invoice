@@ -1,0 +1,715 @@
+{% extends "layout.html" %}
+{#
+  templates/invoice_detail.html — Fatura Detay Sayfası
+  =====================================================
+  Tek bir faturanın tüm detaylarını gösterir:
+  - Fatura bilgileri (tedarikçi, tarih, tutar, durum)
+  - Fatura kalemleri tablosu (AI tarafından çıkarıldı)
+  - Ham OCR metni (gizlenebilir bölüm)
+  - İşleme durumu (processing ise polling ile güncellenir)
+  - Hata mesajı (failed ise gösterilir)
+#}
+
+{% block title %}Fatura Detayı{% endblock %}
+
+{% block page_meta %}03 . DETAIL{% endblock %}
+
+{% block extra_styles %}
+<style>
+  /* Sayfa düzeni */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+    flex-wrap: wrap;
+  }
+
+  .page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  /* İşleniyor bandı */
+  .processing-banner {
+    background: transparent;
+    border: 1px solid var(--raw-neon);
+    padding: var(--space-lg);
+    text-align: center;
+    margin-bottom: var(--space-xl);
+    display: none;
+  }
+
+  .processing-banner.show { display: block; }
+
+  .processing-dots {
+    display: inline-flex;
+    gap: 6px;
+    margin-top: var(--space-sm);
+  }
+
+  .processing-dots span {
+    width: 7px;
+    height: 7px;
+    background: var(--raw-neon);
+    animation: dot-step 1.2s steps(1) infinite;
+  }
+
+  .processing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .processing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes dot-step {
+    0%, 49%   { opacity: 1; }
+    50%, 100% { opacity: 0.2; }
+  }
+
+  /* Hata bandı — hazard-stripe vurgusu */
+  .error-banner {
+    background: repeating-linear-gradient(
+      45deg,
+      var(--raw-black) 0 8px,
+      #1a1a1a 8px 16px
+    );
+    border: 2px solid var(--raw-white);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-xl);
+    display: none;
+  }
+
+  .error-banner.show { display: block; }
+
+  .error-banner h3 {
+    color: var(--raw-white);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .error-banner p {
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--color-border);
+    padding: var(--space-sm);
+    white-space: pre-wrap;
+  }
+
+  /* Bilgi satırları */
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9rem;
+  }
+
+  .info-row:last-child { border-bottom: none; }
+
+  .info-label {
+    font-family: var(--font-mono);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .info-value {
+    color: var(--color-text-primary);
+    font-weight: 600;
+    text-align: right;
+  }
+
+  /* Kalemleri tablosu */
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-top: var(--space-md);
+  }
+
+  .items-table th {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .items-table td {
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+  }
+
+  .items-table tr:last-child td { border-bottom: none; }
+
+  .items-table .amount-col {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  .empty-items {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+
+  /* OCR ham metin - collapsible */
+  .ocr-section {
+    margin-top: var(--space-md);
+  }
+
+  .ocr-toggle {
+    background: none;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: var(--space-xs) var(--space-md);
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    transition: border-color var(--transition), color var(--transition);
+  }
+
+  .ocr-toggle:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
+  }
+
+  .ocr-content {
+    display: none;
+    margin-top: var(--space-sm);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    padding: var(--space-md);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+    line-height: 1.5;
+  }
+
+  .ocr-content.show { display: block; }
+
+  /* Yan panel */
+  .side-panel .info-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    padding: var(--space-lg);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-md)), calc(100% - var(--chamfer-md)) 100%, 0 100%);
+  }
+
+  .side-panel h3 {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  /* Placeholder/yükleniyor durumu — smooth shimmer yerine adım tabanlı titreşim */
+  .skeleton {
+    background: var(--color-border);
+    height: 1em;
+    display: inline-block;
+    width: 80%;
+    animation: skeleton-step 700ms steps(1) infinite;
+  }
+
+  @keyframes skeleton-step {
+    0%, 49%   { opacity: 0.5; }
+    50%, 100% { opacity: 0.9; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <a href="/dashboard" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem;">
+    <span data-lucide="arrow-left" style="width:13px;height:13px;"></span>
+    Geri
+  </a>
+  <h1 id="page-title"><span data-lucide="file-text" style="width:22px;height:22px;color:var(--raw-neon);"></span>Fatura Detayı</h1>
+  <div id="status-badge-wrapper">
+    <span class="badge" id="status-badge">—</span>
+  </div>
+  <div style="display: flex; gap: 10px;">
+    <button class="btn btn-secondary" id="btn-edit" style="display:none; font-size:0.75rem;" onclick="editInvoice()">
+      <span data-lucide="edit-3" style="width:13px;height:13px;"></span>Düzenle
+    </button>
+    <button class="btn btn-danger" id="btn-delete" style="display:none; font-size:0.75rem;" onclick="deleteInvoice()">
+      <span data-lucide="trash-2" style="width:13px;height:13px;"></span>Sil
+    </button>
+  </div>
+</div>
+
+<!-- İşleniyor Banner -->
+<div class="processing-banner" id="processing-banner">
+  <p style="color: var(--raw-neon); font-weight: 700; text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; justify-content:center; gap:8px;">
+    <span data-lucide="loader-circle" style="width:16px;height:16px;"></span>OCR + AI İşlemi Devam Ediyor
+  </p>
+  <p style="color: var(--color-text-secondary); font-size: 0.85rem; margin-top: 6px; font-family: var(--font-mono);">
+    Fatura görseliniz analiz ediliyor. Bu işlem 10-30 saniye sürebilir.
+  </p>
+  <div class="processing-dots">
+    <span></span><span></span><span></span>
+  </div>
+</div>
+
+<!-- Hata Banner -->
+<div class="error-banner" id="error-banner">
+  <h3><span data-lucide="alert-triangle" style="width:16px;height:16px;"></span>İşleme Başarısız</h3>
+  <p id="error-message-text"></p>
+  <p style="color: var(--color-text-secondary); font-size: 0.8rem; margin-top: 8px; font-family: var(--font-mono);">
+    Fatura bilgilerini manuel olarak düzenleyebilirsiniz.
+  </p>
+</div>
+
+<div class="detail-grid">
+
+  <!-- Sol: Ana İçerik -->
+  <div>
+    <!-- Fatura Bilgileri -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><span data-lucide="clipboard-list" style="width:16px;height:16px;color:var(--raw-neon);"></span>Fatura Bilgileri</div>
+        <div class="card-subtitle" id="invoice-subtitle">Yükleniyor...</div>
+      </div>
+
+      <div id="invoice-info">
+        <div class="info-row">
+          <span class="info-label">Tedarikçi</span>
+          <span class="info-value" id="info-vendor"><span class="skeleton"></span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Fatura Tarihi</span>
+          <span class="info-value" id="info-date"><span class="skeleton"></span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Toplam Tutar</span>
+          <span class="info-value" id="info-amount"><span class="skeleton"></span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Durum</span>
+          <span class="info-value" id="info-status"><span class="skeleton"></span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Oluşturulma</span>
+          <span class="info-value" id="info-created"><span class="skeleton"></span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Son Güncelleme</span>
+          <span class="info-value" id="info-updated"><span class="skeleton"></span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fatura Kalemleri -->
+    <div class="card mt-md">
+      <div class="card-header">
+        <div class="card-title"><span data-lucide="list" style="width:16px;height:16px;color:var(--raw-neon);"></span>Fatura Kalemleri</div>
+        <div class="card-subtitle">AI tarafından otomatik çıkarıldı</div>
+      </div>
+
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Açıklama</th>
+            <th>Kategori</th>
+            <th style="text-align: right;">Tutar</th>
+          </tr>
+        </thead>
+        <tbody id="line-items-tbody">
+          <tr>
+            <td colspan="3" class="empty-items">Yükleniyor...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- OCR Ham Metin (Gizlenebilir) -->
+    <div class="card mt-md ocr-section" id="ocr-section" style="display: none;">
+      <div class="card-header">
+        <div class="card-title"><span data-lucide="scan-text" style="width:16px;height:16px;color:var(--raw-neon);"></span>OCR Ham Metin</div>
+        <div class="card-subtitle">Tesseract tarafından çıkarılan ham metin</div>
+      </div>
+      <button class="ocr-toggle" onclick="toggleOcr()">
+        <span data-lucide="file-text" style="width:13px;height:13px;"></span>Ham metni göster / gizle
+      </button>
+      <div class="ocr-content" id="ocr-content"></div>
+    </div>
+  </div>
+
+  <!-- Sağ: Yan Panel -->
+  <div class="side-panel">
+    <div class="info-card">
+      <h3><span data-lucide="info" style="width:13px;height:13px;"></span>İşleme Bilgisi</h3>
+      <div class="info-row">
+        <span class="info-label">Fatura ID</span>
+        <span class="info-value" id="side-id">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Dosya</span>
+        <span class="info-value" id="side-file" style="font-size: 0.75rem; word-break: break-all;">—</span>
+      </div>
+    </div>
+
+    <div class="info-card mt-md" id="ai-info-card">
+      <h3><span data-lucide="bot" style="width:13px;height:13px;"></span>AI İşleme</h3>
+      <div style="font-size: 0.85rem; color: var(--color-text-secondary); line-height: 1.6;" id="ai-info-text">
+        —
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/*
+ * invoice_detail.html JavaScript
+ * 
+ * 1. Sayfa yüklenince fatura verisini çeker
+ * 2. Durum "processing" ise polling başlatır
+ * 3. Durum "processed"/"failed" olunca polling durur, sayfa güncellenir
+ */
+
+// Jinja2'den gelen fatura ID'si
+const INVOICE_ID = {{ invoice_id }};
+
+let pollingInterval = null;
+let invoiceData = null;
+
+document.addEventListener('DOMContentLoaded', async function() {
+  if (typeof requireAuth === 'function') requireAuth();
+  await loadInvoice();
+});
+
+
+async function loadInvoice() {
+  const token = localStorage.getItem('access_token');
+
+  try {
+    const response = await fetch(`/invoices/${INVOICE_ID}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.status === 401) {
+      localStorage.clear();
+      window.location.href = '/auth/login';
+      return;
+    }
+
+    if (response.status === 404) {
+      document.getElementById('page-title').innerHTML =
+        '<span data-lucide="alert-triangle" style="width:22px;height:22px;color:var(--raw-neon);"></span>Fatura Bulunamadı';
+      refreshIcons();
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error('Fatura yüklenemedi');
+    }
+
+    invoiceData = await response.json();
+    renderInvoice(invoiceData);
+
+    // Processing durumundaysa polling başlat
+    if (invoiceData.status === 'processing' || invoiceData.status === 'pending') {
+      startPolling();
+    }
+
+  } catch (err) {
+    console.error('Fatura yükleme hatası:', err);
+    document.getElementById('page-title').innerHTML =
+      '<span data-lucide="alert-triangle" style="width:22px;height:22px;color:var(--raw-neon);"></span>Yükleme Hatası';
+    refreshIcons();
+  }
+}
+
+
+function renderInvoice(inv) {
+  // Başlık
+  document.getElementById('page-title').innerHTML =
+    `<span data-lucide="file-text" style="width:22px;height:22px;color:var(--raw-neon);"></span>Fatura #${inv.id}`;
+  document.getElementById('invoice-subtitle').textContent =
+    inv.vendor_name ? `${inv.vendor_name}` : 'Tedarikçi bilgisi henüz işlenmedi';
+
+  // Durum badge
+  const badge = document.getElementById('status-badge');
+  badge.textContent = translateStatus(inv.status);
+  badge.className = `badge badge-${inv.status}`;
+
+  // Bilgi alanları
+  document.getElementById('info-vendor').textContent  = inv.vendor_name || '—';
+  document.getElementById('info-date').textContent    = inv.invoice_date || '—';
+  document.getElementById('info-amount').textContent  = inv.total_amount != null
+    ? formatCurrency(inv.total_amount) : '—';
+  document.getElementById('info-status').innerHTML = `<span class="badge badge-${inv.status}">${translateStatus(inv.status)}</span>`;
+  document.getElementById('info-created').textContent = formatDate(inv.created_at);
+  document.getElementById('info-updated').textContent = inv.updated_at ? formatDate(inv.updated_at) : '—';
+
+  // Yan panel
+  document.getElementById('side-id').textContent = `#${inv.id}`;
+  const fileParts = (inv.file_path || '').split(/[\\/]/);
+  document.getElementById('side-file').textContent = fileParts[fileParts.length - 1] || '—';
+
+  // İşleniyor banner
+  const processingBanner = document.getElementById('processing-banner');
+  if (inv.status === 'processing' || inv.status === 'pending') {
+    processingBanner.classList.add('show');
+    document.getElementById('ai-info-text').textContent = 'OCR + AI işlemi devam ediyor...';
+  } else {
+    processingBanner.classList.remove('show');
+  }
+
+  // Hata banner
+  const errorBanner = document.getElementById('error-banner');
+  if (inv.status === 'failed') {
+    errorBanner.classList.add('show');
+    document.getElementById('error-message-text').textContent =
+      inv.error_message || 'Bilinmeyen hata.';
+    document.getElementById('ai-info-text').textContent = 'İşleme başarısız.';
+  } else {
+    errorBanner.classList.remove('show');
+  }
+
+  // Başarılı işleme bilgisi
+  if (inv.status === 'processed' || inv.status === 'reviewed') {
+    document.getElementById('ai-info-text').innerHTML =
+      `<span style="display:flex; align-items:center; gap:6px; color: var(--raw-neon);">
+         <span data-lucide="check-circle" style="width:14px;height:14px;"></span>OCR + AI başarıyla tamamlandı.
+       </span>
+       <span style="color: var(--color-text-muted); font-size:0.8rem; font-family: var(--font-mono);">
+         ${inv.line_items?.length || 0} kalem çıkarıldı
+       </span>`;
+  }
+
+  // Fatura kalemleri
+  renderLineItems(inv.line_items || []);
+
+  // OCR ham metin
+  if (inv.raw_ocr_text) {
+    document.getElementById('ocr-section').style.display = 'block';
+    document.getElementById('ocr-content').textContent = inv.raw_ocr_text;
+  }
+
+  // Düzenle / Sil butonları
+  document.getElementById('btn-edit').style.display = '';
+  document.getElementById('btn-delete').style.display = '';
+
+  refreshIcons();
+}
+
+
+function renderLineItems(items) {
+  const tbody = document.getElementById('line-items-tbody');
+
+  if (!items || items.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="3" class="empty-items">
+          ${invoiceData && (invoiceData.status === 'processing' || invoiceData.status === 'pending')
+            ? '// AI kalemleri çıkarıyor...'
+            : 'Kalem bulunamadı. AI metin içinde kalem tespit edemedi.'}
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = items.map(item => `
+    <tr>
+      <td>${escapeHtml(item.description)}</td>
+      <td>
+        ${item.category
+          ? `<span class="mono" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em; color: var(--color-text-secondary);
+                          border: 1px solid var(--color-border); padding: 2px 8px;">${escapeHtml(item.category?.name || '—')}</span>`
+          : '<span style="color: var(--color-text-muted);">—</span>'}
+      </td>
+      <td class="amount-col">${formatCurrency(item.amount)}</td>
+    </tr>
+  `).join('');
+
+  refreshIcons();
+}
+
+
+/* ── Polling Mekanizması ──────────────────────────────────────
+ *
+ * NEDEN POLLING?
+ * BackgroundTask sunucuda arka planda çalışıyor. Frontend'in
+ * bunun ne zaman biteceğini bilmesi için 2 seçenek var:
+ *
+ * 1. WebSocket: İki yönlü kalıcı bağlantı. Fatura işleme
+ *    için overkill, fazla karmaşık.
+ *
+ * 2. Polling: Belirli aralıklarla /status endpoint'ini çağır.
+ *    Basit, HTTP üzerinde çalışır, debug kolaydır.
+ *    5 saniyede bir istek → kullanıcı en fazla 5sn geç görür.
+ *
+ * Polling durma koşulu: status artık "processing" veya "pending" değil.
+ */
+function startPolling() {
+  if (pollingInterval) return; // Çift başlatmayı önle
+
+  console.log('[Polling] Başlatıldı — her 5 saniyede bir durum kontrol edilecek');
+
+  pollingInterval = setInterval(async () => {
+    const token = localStorage.getItem('access_token');
+
+    try {
+      const response = await fetch(`/invoices/${INVOICE_ID}/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) return;
+
+      const statusData = await response.json();
+
+      // Durum değiştiyse
+      if (statusData.status !== invoiceData?.status) {
+        console.log(`[Polling] Durum değişti: ${invoiceData?.status} → ${statusData.status}`);
+
+        // İşlem bittiyse polling'i durdur ve tam veriyi yeniden yükle
+        if (statusData.status === 'processed' || statusData.status === 'failed') {
+          stopPolling();
+          await loadInvoice();
+        }
+      }
+
+    } catch (err) {
+      console.warn('[Polling] Hata (görmezden geliniyor):', err);
+    }
+
+  }, 5000); // 5 saniye
+}
+
+
+function stopPolling() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+    console.log('[Polling] Durduruldu');
+  }
+}
+
+
+function toggleOcr() {
+  const content = document.getElementById('ocr-content');
+  content.classList.toggle('show');
+}
+
+
+function editInvoice() {
+  window.location.href = `/invoices/add?edit=${INVOICE_ID}`;
+}
+
+
+async function deleteInvoice() {
+  if (!confirm(`#${INVOICE_ID} numaralı faturayı silmek istediğinizden emin misiniz?`)) return;
+
+  const token = localStorage.getItem('access_token');
+
+  try {
+    const response = await fetch(`/invoices/${INVOICE_ID}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.ok || response.status === 204) {
+      window.location.href = '/dashboard';
+    } else {
+      const data = await response.json();
+      alert(data.detail || 'Silme başarısız.');
+    }
+  } catch (err) {
+    alert('Sunucuya bağlanılamadı.');
+  }
+}
+
+
+/* Yardımcı Fonksiyonlar */
+
+function translateStatus(status) {
+  const map = {
+    pending:    'Beklemede',
+    processing: 'İşleniyor',
+    processed:  'İşlendi',
+    reviewed:   'İncelendi',
+    failed:     'Başarısız',
+  };
+  return map[status] || status;
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency', currency: 'TRY', minimumFractionDigits: 2
+  }).format(amount);
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleString('tr-TR', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+// Sayfa kapanırken polling'i temizle
+window.addEventListener('beforeunload', stopPolling);
+</script>
+{% endblock %}

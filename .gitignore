@@ -1,0 +1,45 @@
+# ============================================================
+# .gitignore — Git'e Gönderilmeyecek Dosyalar
+# ============================================================
+
+# --- Ortam Değişkenleri (GİZLİ!) ---
+# .env dosyasını asla commit etme — içinde SECRET_KEY ve API anahtarları var
+.env
+
+# --- Python Sanal Ortamı ---
+venv/
+env/
+.venv/
+
+# --- Python Derleme Dosyaları ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# --- SQLite Veritabanı (geliştirme DB'si) ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Yüklenen Dosyalar ---
+# Kullanıcıların yüklediği gerçek fatura dosyaları repoya girmemeli
+uploads/
+
+# --- IDE ve Editör Dosyaları ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+.pytest_cache/
+
+# --- Alembic Otomatik Oluşturulan (opsiyonel) ---
+# alembic/versions/ klasörünü genellikle repoya ekleriz ama
+# kişisel geliştirme DB migration'larını değil
+# alembic/versions/
+
+# --- OS Dosyaları ---
+.DS_Store
+Thumbs.db

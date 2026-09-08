@@ -1,0 +1,463 @@
+{% extends "layout.html" %}
+{#
+  templates/add_invoice.html — Fatura Ekleme / Düzenleme Formu
+  Hem yeni fatura oluşturma hem de mevcut fatura düzenleme için kullanılır.
+  URL'de ?edit=ID varsa düzenleme modunda açılır.
+#}
+
+{% block title %}Fatura Ekle{% endblock %}
+
+{% block page_meta %}02 . NEW_ENTRY{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .form-page-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .form-page-layout { grid-template-columns: 1fr; }
+  }
+
+  .page-header {
+    margin-bottom: var(--space-xl);
+  }
+
+  .page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+  .page-header p { font-family: var(--font-mono); color: var(--color-text-secondary); font-size: 0.8rem; margin-top: 4px; }
+
+  /* Dosya yükleme alanı */
+  .upload-zone {
+    border: 1px dashed var(--color-border);
+    padding: var(--space-2xl);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+    background: var(--color-bg-secondary);
+  }
+
+  .upload-zone:hover,
+  .upload-zone.dragover {
+    border-color: var(--color-accent);
+    background: var(--color-accent-light);
+  }
+
+  .upload-zone .upload-icon { color: var(--color-text-muted); margin-bottom: var(--space-sm); display: flex; justify-content: center; }
+  .upload-zone .upload-icon svg { width: 34px; height: 34px; }
+  .upload-zone.dragover .upload-icon { color: var(--raw-neon); }
+  .upload-zone p { font-family: var(--font-mono); color: var(--color-text-secondary); font-size: 0.8rem; }
+  .upload-zone strong { color: var(--color-accent); }
+
+  /* OCR Uyarısı */
+  .ocr-notice {
+    background: transparent;
+    border: 1px solid var(--raw-neon);
+    padding: var(--space-md);
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    margin-top: var(--space-sm);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+
+  .ocr-notice svg { color: var(--raw-neon); flex-shrink: 0; margin-top: 2px; }
+  .ocr-notice strong { color: var(--raw-neon); }
+
+  /* Bilgi kartı */
+  .info-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    padding: var(--space-lg);
+    font-size: 0.875rem;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-md)), calc(100% - var(--chamfer-md)) 100%, 0 100%);
+  }
+
+  .info-card h3 {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: var(--space-sm);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .info-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+  }
+
+  .info-item:last-child { border-bottom: none; }
+  .info-item .info-icon { flex-shrink: 0; color: var(--raw-neon); margin-top: 2px; }
+  .info-item .info-icon svg { width: 15px; height: 15px; }
+
+  /* Form section başlığı */
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--space-md);
+    margin-top: var(--space-lg);
+    padding-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .section-title:first-child { margin-top: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 id="page-title"><span data-lucide="plus-circle" style="width:22px;height:22px;color:var(--raw-neon);"></span>Fatura Ekle</h1>
+  <p id="page-subtitle">&gt; Fatura bilgilerini manuel olarak girin veya dosya yükleyin</p>
+</div>
+
+<div class="form-page-layout">
+
+  <!-- Sol: Ana Form -->
+  <div>
+    <div class="card">
+      <div class="alert" id="alert-message" role="alert"></div>
+
+      <form id="invoice-form" novalidate>
+        <input type="hidden" id="invoice-id" value="">
+
+        <!-- Tedarikçi Bilgileri -->
+        <p class="section-title">Tedarikçi Bilgileri</p>
+
+        <div class="form-group">
+          <label for="vendor_name" class="form-label">Tedarikçi / Satıcı Adı</label>
+          <input
+            type="text"
+            id="vendor_name"
+            name="vendor_name"
+            class="form-control"
+            placeholder="Örn: ABC Ofis Malzemeleri A.Ş."
+          >
+        </div>
+
+        <!-- Fatura Detayları -->
+        <p class="section-title">Fatura Detayları</p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+          <div class="form-group">
+            <label for="invoice_date" class="form-label">Fatura Tarihi</label>
+            <input
+              type="date"
+              id="invoice_date"
+              name="invoice_date"
+              class="form-control"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="total_amount" class="form-label">Toplam Tutar (TL)</label>
+            <input
+              type="number"
+              id="total_amount"
+              name="total_amount"
+              class="form-control"
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+            >
+          </div>
+        </div>
+
+        <!-- Durum (sadece düzenleme modunda görünür) -->
+        <div class="form-group" id="status-group" style="display: none;">
+          <label for="status" class="form-label">Durum</label>
+          <select id="status" name="status" class="form-control">
+            <option value="pending">Beklemede</option>
+            <option value="processed">İşlendi</option>
+            <option value="reviewed">İncelendi</option>
+          </select>
+        </div>
+
+        <!-- Form Butonları -->
+        <div style="display: flex; gap: var(--space-md); margin-top: var(--space-lg);">
+          <button type="submit" class="btn btn-primary" id="btn-submit" style="flex: 1;">
+            <span class="spinner" id="form-spinner"></span>
+            <span id="btn-submit-text">Fatura Kaydet</span>
+          </button>
+          <a href="/dashboard" class="btn btn-secondary">İptal</a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Dosya Yükleme Bölümü -->
+    <div class="card mt-md">
+      <div class="card-header">
+        <div class="card-title"><span data-lucide="paperclip" style="width:16px;height:16px;color:var(--raw-neon);"></span>Dosya Yükle (OCR &amp; AI)</div>
+        <div class="card-subtitle">Fatura görüntüsü veya PDF yükleyin</div>
+      </div>
+
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="upload-icon"><span data-lucide="upload-cloud"></span></div>
+        <p><strong>Tıklayın</strong> veya dosyayı sürükleyin</p>
+        <p style="margin-top: 4px; font-size: 0.7rem;">PNG, JPG, WebP, PDF — MAKS. 10 MB</p>
+      </div>
+
+      <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.webp,.pdf" style="display:none" onchange="handleFileSelect(this)">
+
+      <div class="ocr-notice mt-md">
+        <span data-lucide="sparkles"></span>
+        <span><strong>OCR &amp; AI Özelliği Aktif:</strong> Yüklediğiniz dosyadan Tesseract OCR ve Google Gemini AI ile metin, tarih, tutar ve kalem bilgileri otomatik olarak çıkarılacaktır.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sağ: Bilgi Paneli -->
+  <div>
+    <div class="info-card">
+      <h3><span data-lucide="info" style="width:14px;height:14px;"></span>Bilgi</h3>
+
+      <div class="info-item">
+        <span class="info-icon" data-lucide="pin"></span>
+        <span>Tüm alanlar opsiyoneldir. Dilerseniz manuel giriş de yapabilirsiniz.</span>
+      </div>
+      <div class="info-item">
+        <span class="info-icon" data-lucide="lock"></span>
+        <span>Faturalar yalnızca size görünür. Diğer kullanıcılar erişemez.</span>
+      </div>
+      <div class="info-item">
+        <span class="info-icon" data-lucide="refresh-cw"></span>
+        <span>Kaydettikten sonra düzenleyebilir veya silebilirsiniz.</span>
+      </div>
+      <div class="info-item">
+        <span class="info-icon" data-lucide="bot"></span>
+        <span>Dosya yüklediğinizde OCR &amp; AI işlemi otomatik olarak başlatılır.</span>
+      </div>
+    </div>
+
+    <!-- Yükleme durumu (gizli — dosya seçilince görünür) -->
+    <div class="info-card mt-md" id="upload-status" style="display: none;">
+      <h3><span data-lucide="send" style="width:14px;height:14px;"></span>Yükleme Durumu</h3>
+      <div id="upload-status-content"></div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/*
+ * add_invoice.html JavaScript'i
+ * 
+ * İki mod destekler:
+ * 1. Oluşturma modu: POST /invoices
+ * 2. Düzenleme modu: GET /invoices/{id} ile veri yükle, PUT /invoices/{id} ile kaydet
+ */
+
+// URL'den edit parametresini oku
+const urlParams = new URLSearchParams(window.location.search);
+const editId = urlParams.get('edit');
+
+document.addEventListener('DOMContentLoaded', async function() {
+  if (typeof requireAuth === 'function') requireAuth();
+
+  if (editId) {
+    // Düzenleme moduna geç
+    document.getElementById('page-title').innerHTML =
+      '<span data-lucide="edit-3" style="width:22px;height:22px;color:var(--raw-neon);"></span>Fatura Düzenle';
+    document.getElementById('page-subtitle').textContent = `> #${editId} numaralı faturayı düzenliyorsunuz`;
+    document.getElementById('btn-submit-text').textContent = 'Değişiklikleri Kaydet';
+    document.getElementById('status-group').style.display = 'block';
+    document.getElementById('invoice-id').value = editId;
+
+    await loadInvoice(editId);
+    refreshIcons();
+  }
+});
+
+
+async function loadInvoice(id) {
+  const token = localStorage.getItem('access_token');
+
+  try {
+    const response = await fetch(`/invoices/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+      showAlert('Fatura bulunamadı.', 'error');
+      return;
+    }
+
+    const inv = await response.json();
+
+    // Formu doldur
+    document.getElementById('vendor_name').value  = inv.vendor_name || '';
+    document.getElementById('invoice_date').value = inv.invoice_date || '';
+    document.getElementById('total_amount').value = inv.total_amount || '';
+    document.getElementById('status').value       = inv.status || 'pending';
+
+  } catch (error) {
+    showAlert('Fatura yüklenemedi.', 'error');
+  }
+}
+
+
+document.getElementById('invoice-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const token     = localStorage.getItem('access_token');
+  const invId     = document.getElementById('invoice-id').value;
+  const isEdit    = !!invId;
+
+  const vendor_name   = document.getElementById('vendor_name').value.trim() || null;
+  const invoice_date  = document.getElementById('invoice_date').value || null;
+  const total_amount  = parseFloat(document.getElementById('total_amount').value) || null;
+  const status        = document.getElementById('status').value || undefined;
+
+  const body = { vendor_name, invoice_date, total_amount };
+  if (isEdit && status) body.status = status;
+
+  const btn     = document.getElementById('btn-submit');
+  const spinner = document.getElementById('form-spinner');
+  const btnText = document.getElementById('btn-submit-text');
+
+  btn.disabled = true;
+  spinner.classList.add('show');
+  btnText.textContent = 'Kaydediliyor...';
+
+  try {
+    const url    = isEdit ? `/invoices/${invId}` : '/invoices';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showAlert(data.detail || 'İşlem başarısız.', 'error');
+      return;
+    }
+
+    showAlert(
+      isEdit ? 'Fatura başarıyla güncellendi!' : 'Fatura başarıyla oluşturuldu!',
+      'success'
+    );
+
+    // Listeye yönlendir
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 1200);
+
+  } catch (error) {
+    showAlert('Sunucuya bağlanılamadı.', 'error');
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+    btnText.textContent = isEdit ? 'Değişiklikleri Kaydet' : 'Fatura Kaydet';
+  }
+});
+
+
+/* Dosya Yükleme */
+async function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const token = localStorage.getItem('access_token');
+  const statusDiv = document.getElementById('upload-status');
+  const statusContent = document.getElementById('upload-status-content');
+
+  statusDiv.style.display = 'block';
+  statusContent.innerHTML = '<p class="mono" style="color: var(--color-text-secondary); font-size:0.8rem;">// Yükleniyor...</p>';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await fetch('/invoices/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      statusContent.innerHTML = `<p class="mono" style="color: var(--raw-white); font-size:0.8rem;">HATA: ${data.detail}</p>`;
+      return;
+    }
+
+    statusContent.innerHTML = `
+      <p class="mono" style="color: var(--raw-neon); font-size:0.8rem;">${data.message}</p>
+      <p class="mono" style="color: var(--color-text-muted); font-size: 0.75rem; margin-top: 8px;">
+        Fatura ID: #${data.invoice_id}
+      </p>
+      <a href="/invoices/${data.invoice_id}/detail"
+         class="btn btn-primary mt-md"
+         style="font-size: 0.75rem; display: inline-flex; margin-top: 12px;">
+        <span data-lucide="search" style="width:13px;height:13px;"></span>
+        İşleme Durumunu İzle
+      </a>
+    `;
+    refreshIcons();
+
+  } catch (error) {
+    statusContent.innerHTML = '<p class="mono" style="color: var(--raw-white); font-size:0.8rem;">HATA: Yükleme başarısız.</p>';
+  }
+}
+
+// Sürükle-bırak desteği
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    const input = document.getElementById('file-input');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    handleFileSelect(input);
+  }
+});
+
+
+function showAlert(message, type) {
+  const alertEl = document.getElementById('alert-message');
+  alertEl.textContent = message;
+  alertEl.className = `alert alert-${type} show`;
+  alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+{% endblock %}

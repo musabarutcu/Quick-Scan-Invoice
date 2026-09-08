@@ -1,0 +1,220 @@
+{% extends "layout.html" %}
+{#
+  templates/register.html — Kullanıcı Kayıt Sayfası
+  login.html gibi layout.html'i miras alır.
+#}
+
+{% block title %}Kayıt Ol{% endblock %}
+
+{% block page_meta %}00 . AUTH_REGISTER{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .auth-card {
+    width: 100%;
+    max-width: 440px;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    padding: var(--space-2xl);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-lg)), calc(100% - var(--chamfer-lg)) 100%, 0 100%);
+  }
+
+  .auth-logo {
+    text-align: center;
+    margin-bottom: var(--space-xl);
+  }
+
+  .auth-logo .logo-icon {
+    color: var(--raw-neon);
+    margin-bottom: var(--space-sm);
+    display: flex;
+    justify-content: center;
+  }
+
+  .auth-logo .logo-icon svg { width: 34px; height: 34px; }
+
+  .auth-logo h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .auth-logo p {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+  }
+
+  /* Şifre gücü göstergesi */
+  .password-hint {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin: -32px; min-height: calc(100vh - 80px); display: flex; align-items: center; justify-content: center; padding: 32px;">
+  <div class="auth-card">
+
+    <div class="auth-logo">
+      <span class="logo-icon" data-lucide="user-plus"></span>
+      <h1>Hesap Oluşturun</h1>
+      <p>&gt; Ücretsiz kayıt olun, faturalarınızı yönetin</p>
+    </div>
+
+    <div class="alert" id="alert-message" role="alert"></div>
+
+    <form id="register-form" novalidate>
+      <div class="form-group">
+        <label for="username" class="form-label">Kullanıcı Adı</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          class="form-control"
+          placeholder="ahmet_yilmaz"
+          required
+          autocomplete="username"
+          minlength="3"
+          maxlength="50"
+        >
+        <p class="password-hint">3-50 karakter, harf/rakam/alt çizgi</p>
+      </div>
+
+      <div class="form-group">
+        <label for="email" class="form-label">Email Adresi</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          class="form-control"
+          placeholder="ornek@sirket.com"
+          required
+          autocomplete="email"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Şifre</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          class="form-control"
+          placeholder="En az 8 karakter"
+          required
+          autocomplete="new-password"
+          minlength="8"
+        >
+        <p class="password-hint">En az 8 karakter</p>
+      </div>
+
+      <div class="form-group">
+        <label for="password-confirm" class="form-label">Şifre Tekrar</label>
+        <input
+          type="password"
+          id="password-confirm"
+          name="password-confirm"
+          class="form-control"
+          placeholder="Şifrenizi tekrar girin"
+          required
+          autocomplete="new-password"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full mt-md" id="btn-register">
+        <span class="spinner" id="register-spinner"></span>
+        <span id="btn-register-text">Kayıt Ol</span>
+      </button>
+    </form>
+
+    <hr class="divider">
+
+    <p class="text-center text-small text-muted">
+      Zaten hesabınız var mı?
+      <a href="/auth/login" style="color: var(--color-accent); text-decoration: none; font-weight: 500;">
+        Giriş Yapın
+      </a>
+    </p>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('register-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const username  = document.getElementById('username').value.trim();
+  const email     = document.getElementById('email').value.trim();
+  const password  = document.getElementById('password').value;
+  const passConf  = document.getElementById('password-confirm').value;
+  const alertEl   = document.getElementById('alert-message');
+  const btn       = document.getElementById('btn-register');
+  const btnText   = document.getElementById('btn-register-text');
+  const spinner   = document.getElementById('register-spinner');
+
+  // Sıfırla
+  alertEl.className = 'alert';
+
+  // İstemci tarafı doğrulama (sunucu da doğruluyor — çift katman)
+  if (password !== passConf) {
+    alertEl.textContent = 'Şifreler eşleşmiyor.';
+    alertEl.classList.add('show', 'alert-error');
+    return;
+  }
+
+  if (password.length < 8) {
+    alertEl.textContent = 'Şifre en az 8 karakter olmalıdır.';
+    alertEl.classList.add('show', 'alert-error');
+    return;
+  }
+
+  // Yükleniyor
+  btn.disabled = true;
+  spinner.classList.add('show');
+  btnText.textContent = 'Kayıt yapılıyor...';
+
+  try {
+    const response = await fetch('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alertEl.textContent = data.detail || 'Kayıt başarısız. Lütfen tekrar deneyin.';
+      alertEl.classList.add('show', 'alert-error');
+      return;
+    }
+
+    // Başarılı kayıt — giriş sayfasına yönlendir
+    alertEl.textContent = 'Kayıt başarılı! Giriş sayfasına yönlendiriliyorsunuz...';
+    alertEl.classList.add('show', 'alert-success');
+
+    setTimeout(() => {
+      window.location.href = '/auth/login';
+    }, 1500);
+
+  } catch (error) {
+    alertEl.textContent = 'Sunucuya bağlanılamadı.';
+    alertEl.classList.add('show', 'alert-error');
+    console.error('Register error:', error);
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+    btnText.textContent = 'Kayıt Ol';
+  }
+});
+</script>
+{% endblock %}

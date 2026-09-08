@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<!--
+  templates/layout.html — Ana Jinja2 Şablon (Base Template)
+  =============================================================
+  Bu dosya tüm sayfaların temelini oluşturur.
+
+  JINJA2 TEMPLATE MİRASI (Template Inheritance):
+  Diğer şablonlar bu dosyayı extends "layout.html" ile
+  miras alır ve block bloklarını doldurur.
+
+  NEDEN MIRAS? (include yerine)
+  include ile şablon parçaları birleştirme yaygın ama
+  hatalı bir yaklaşımdır. Sorunlar:
+  1. Her sayfa dosyasında <html>, <head>, <body> tekrar edilir
+  2. Tutarsız yapı riski artar
+  3. Büyük projede bakım zorlaşır
+
+  extends ile miras:
+  - layout.html'deki yapı tek yerden yönetilir
+  - Alt şablonlar sadece değişen kısımları (block) doldurur
+  - DRY (Don't Repeat Yourself) prensibi uygulanır
+
+  KULLANIM (alt şablonlarda):
+    extends "layout.html"
+    block title: Sayfa Başlığı
+    block page_meta: "01 . SAYFA_ADI" (üst bilgi çubuğu, opsiyonel)
+    block content:
+      <h1>Sayfa içeriği buraya gelir</h1>
+
+  TASARIM SİSTEMİ:
+  Siber-minimalist / keskin (cyber-brutalist) tasarım dili.
+  Ortak tasarım tokenleri ve bileşenler static/css/main.css
+  dosyasında tanımlanır. Sayfaya özel stiller extra_styles
+  bloğunda kalır.
+-->
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!--
+    block title — Sayfa başlığı bloğu
+    Her alt şablon kendi başlığını tanımlar.
+    Varsayılan değer: "QuickScan"
+    Alt şablon tanımlamazsa varsayılan kullanılır.
+  -->
+  <title>{% block title %}QuickScan{% endblock %} | Fatura OCR</title>
+
+  <meta name="description" content="QuickScan — fatura ve makbuz OCR ile muhasebeleştirme sistemi">
+
+  <!-- Google Fonts — Space Grotesk (ana), JetBrains Mono (meta/teknik) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Ortak tasarım sistemi (tokenler + bileşenler) -->
+  <link rel="stylesheet" href="/static/css/main.css">
+
+  <!-- Lucide — çizgisel (stroke) ikon seti. Emoji/dolu ikon kullanılmaz. -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <!--
+    block extra_styles — Sayfa özel CSS bloğu
+    Bazı sayfalar ek stiller tanımlayabilir.
+    Boş bırakılabilir.
+  -->
+  {% block extra_styles %}{% endblock %}
+</head>
+
+<body>
+  <!-- ===================================================
+       Üst Meta Bar — teknik/sistem üst bilgisi
+       Sol: sayfa numarası/adı (alt şablon doldurur)
+       Sağ: sistem durumu göstergesi
+  =================================================== -->
+  <div class="meta-bar">
+    <span>{% block page_meta %}00 . INDEX{% endblock %}</span>
+    <span><i class="status-dot"></i>SYSTEM.ONLINE</span>
+  </div>
+
+  <!-- ===================================================
+       Navigation Bar
+       Kullanıcı giriş durumuna göre JS tarafından
+       güncellenir (base.js'deki updateNav fonksiyonu)
+  =================================================== -->
+  <nav class="navbar">
+    <a href="/" class="navbar-brand">
+      <span class="brand-icon" data-lucide="scan-line"></span>
+      <span>QuickScan</span>
+      <span class="brand-badge">Beta</span>
+    </a>
+
+    <ul class="navbar-nav">
+      <!-- Giriş yapmış kullanıcılar için -->
+      <li class="nav-auth-required">
+        <a href="/dashboard" class="nav-link" id="nav-dashboard">Faturalar</a>
+      </li>
+      <li class="nav-auth-required">
+        <a href="/invoices/add" class="nav-link" id="nav-add">+ Fatura Ekle</a>
+      </li>
+      <li class="nav-auth-required">
+        <span class="nav-link text-muted" id="nav-username" style="display:inline-flex; align-items:center; gap:4px;"></span>
+      </li>
+      <li class="nav-auth-required">
+        <button class="btn btn-secondary" id="btn-logout" onclick="logout()" style="padding: 6px 14px; font-size: 0.7rem;">
+          <span data-lucide="log-out" style="width:13px;height:13px;"></span>
+          Çıkış
+        </button>
+      </li>
+
+      <!-- Giriş yapmamış kullanıcılar için -->
+      <li class="nav-guest-only">
+        <a href="/auth/login" class="nav-link">Giriş Yap</a>
+      </li>
+      <li class="nav-guest-only">
+        <a href="/auth/register" class="btn btn-primary" style="padding: 7px 16px; font-size: 0.75rem;">Kayıt Ol</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- ===================================================
+       Ana İçerik Bloğu
+       Alt şablonlar bu bloğu doldurur.
+  =================================================== -->
+  <main class="main-content">
+    {% block content %}
+    <!-- Alt şablon içeriği buraya gelir -->
+    {% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    QuickScan — OCR &amp; AI Destekli Fatura Muhasebe Sistemi
+  </footer>
+
+  <!-- base.js: Tüm sayfalarda çalışan temel JavaScript -->
+  <script src="/static/js/base.js"></script>
+
+  <!--
+    block extra_scripts — Sayfa özel JavaScript bloğu
+    Bazı sayfalar ek script'ler ekleyebilir.
+  -->
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

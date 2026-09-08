@@ -1,0 +1,202 @@
+{% extends "layout.html" %}
+{#
+  templates/login.html — Kullanıcı Giriş Sayfası
+  =================================================
+  {% extends "layout.html" %} ile layout.html'i miras alır.
+  Sadece farklı olan kısımlar (title, content) tanımlanır.
+  layout.html'deki <html>, <head>, <body>, <nav> otomatik gelir.
+#}
+
+{% block title %}Giriş Yap{% endblock %}
+
+{% block page_meta %}00 . AUTH_LOGIN{% endblock %}
+
+{% block extra_styles %}
+<style>
+  /* Giriş sayfasına özel stiller */
+  .auth-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    padding: var(--space-2xl);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-lg)), calc(100% - var(--chamfer-lg)) 100%, 0 100%);
+  }
+
+  .auth-logo {
+    text-align: center;
+    margin-bottom: var(--space-xl);
+  }
+
+  .auth-logo .logo-icon {
+    color: var(--raw-neon);
+    margin-bottom: var(--space-sm);
+    display: flex;
+    justify-content: center;
+  }
+
+  .auth-logo .logo-icon svg { width: 34px; height: 34px; }
+
+  .auth-logo h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--color-text-primary);
+  }
+
+  .auth-logo p {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!--
+  main-content padding'i kaldır, tam ekran ortalama için
+  Bu sayfa için özel layout kullanıyoruz
+-->
+<div style="margin: -32px; min-height: calc(100vh - 80px); display: flex; align-items: center; justify-content: center; padding: 32px;">
+  <div class="auth-card">
+
+    <!-- Logo / Başlık -->
+    <div class="auth-logo">
+      <span class="logo-icon" data-lucide="shield-check"></span>
+      <h1>Tekrar Hoş Geldiniz</h1>
+      <p>&gt; Hesabınıza giriş yapın</p>
+    </div>
+
+    <!-- Hata / Başarı mesajı -->
+    <div class="alert alert-error" id="alert-message" role="alert"></div>
+
+    <!-- Giriş Formu -->
+    <form id="login-form" novalidate>
+      <div class="form-group">
+        <label for="email" class="form-label">Email Adresi</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          class="form-control"
+          placeholder="ornek@sirket.com"
+          required
+          autocomplete="email"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Şifre</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          class="form-control"
+          placeholder="••••••••"
+          required
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full mt-md" id="btn-login">
+        <span class="spinner" id="login-spinner"></span>
+        <span id="btn-login-text">Giriş Yap</span>
+      </button>
+    </form>
+
+    <hr class="divider">
+
+    <p class="text-center text-small text-muted">
+      Hesabınız yok mu?
+      <a href="/auth/register" style="color: var(--color-accent); text-decoration: none; font-weight: 500;">
+        Kayıt Olun
+      </a>
+    </p>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/*
+ * Giriş sayfası JavaScript'i
+ * 
+ * Form submit event'ini yakalıyoruz ve fetch API ile
+ * /auth/login endpoint'ine POST isteği atıyoruz.
+ * Başarılıysa JWT'yi localStorage'a kaydedip yönlendiriyoruz.
+ * 
+ * NEDEN FORM ACTION YOK?
+ * Geleneksel HTML form action ile sunucuya gönderilse sayfa
+ * tamamen yenilenir. fetch() ile AJAX yaklaşımı:
+ * - Daha akıcı kullanıcı deneyimi
+ * - JSON yanıtını parse edebiliriz
+ * - Token'ı localStorage'a kaydedebiliriz
+ */
+document.getElementById('login-form').addEventListener('submit', async function(e) {
+  e.preventDefault(); // Sayfanın yenilenmesini engelle
+
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const alertEl  = document.getElementById('alert-message');
+  const btnText  = document.getElementById('btn-login-text');
+  const spinner  = document.getElementById('login-spinner');
+  const btn      = document.getElementById('btn-login');
+
+  // Yükleniyor durumu
+  btn.disabled = true;
+  spinner.classList.add('show');
+  btnText.textContent = 'Giriş yapılıyor...';
+  alertEl.classList.remove('show', 'alert-error', 'alert-success');
+
+  try {
+    const response = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Hata mesajını göster
+      alertEl.textContent = data.detail || 'Giriş başarısız. Lütfen tekrar deneyin.';
+      alertEl.classList.add('show', 'alert-error');
+      return;
+    }
+
+    // Başarılı giriş — token'ı kaydet
+    // NOT: localStorage güvenliği: XSS saldırılarına karşı
+    // httpOnly cookie daha güvenlidir, ancak bu öğrenme
+    // projesi için localStorage yeterlidir.
+    localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('token_type', data.token_type);
+
+    // Kullanıcı bilgilerini al ve kaydet
+    const meResponse = await fetch('/auth/me', {
+      headers: { 'Authorization': `Bearer ${data.access_token}` }
+    });
+
+    if (meResponse.ok) {
+      const userData = await meResponse.json();
+      localStorage.setItem('username', userData.username);
+    }
+
+    // Dashboard'a yönlendir
+    window.location.href = '/dashboard';
+
+  } catch (error) {
+    alertEl.textContent = 'Sunucuya bağlanılamadı. Lütfen tekrar deneyin.';
+    alertEl.classList.add('show', 'alert-error');
+    console.error('Login error:', error);
+  } finally {
+    // Buton durumunu sıfırla
+    btn.disabled = false;
+    spinner.classList.remove('show');
+    btnText.textContent = 'Giriş Yap';
+  }
+});
+</script>
+{% endblock %}

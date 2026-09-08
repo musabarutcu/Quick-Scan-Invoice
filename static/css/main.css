@@ -1,0 +1,543 @@
+/* =============================================================
+   static/css/main.css — SİBER-MİNİMALİST & KESKİN TASARIM SİSTEMİ
+   =============================================================
+   Design tokens, reset ve tüm sayfalarda paylaşılan bileşenler.
+   Kurallar: yuvarlak köşe yok, gölge yok, sadece siyah/beyaz/gri/
+   neon sarı, keskin kesik köşeler (clip-path), hızlı/anlık geçişler.
+   Sayfaya özel stiller ilgili template'in {% block extra_styles %}
+   bloğunda kalır; burada sadece paylaşılan sistem tanımlanır.
+============================================================= */
+
+:root {
+  /* --- Ham renk paleti (yalnızca bunlar kullanılır) --- */
+  --raw-black:      #0A0A0A;
+  --raw-black-2:    #111111;
+  --raw-white:      #FFFFFF;
+  --raw-gray-1:     #A1A1AA;
+  --raw-gray-2:     #888888;
+  --raw-gray-line:  #333333;
+  --raw-neon:       #D4FF00;
+  --raw-neon-dark:  #A3C200;
+
+  /* --- Eski değişken adları korunuyor (sayfalarda yaygın kullanım) --- */
+  --color-bg-primary:    var(--raw-black);
+  --color-bg-secondary:  var(--raw-black-2);
+  --color-bg-card:       var(--raw-black);
+  --color-bg-input:      transparent;
+  --color-border:        var(--raw-gray-line);
+  --color-border-focus:  var(--raw-neon);
+
+  --color-accent:        var(--raw-neon);
+  --color-accent-hover:  var(--raw-neon-dark);
+  --color-accent-light:  rgba(212, 255, 0, 0.06);
+
+  --color-text-primary:  var(--raw-white);
+  --color-text-secondary:var(--raw-gray-1);
+  --color-text-muted:    var(--raw-gray-2);
+
+  /* Durum renkleri artık ayrı ton değil — hepsi neon/nötr.
+     Ayrım hue ile değil dolgu/kenarlık/ikon ile yapılır. */
+  --color-success:       var(--raw-neon);
+  --color-warning:       var(--raw-neon);
+  --color-danger:        var(--raw-white);
+  --color-info:          var(--raw-neon);
+
+  /* Spacing (korunuyor) */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+
+  /* Köşe kesimleri — border-radius YASAK, yerine clip-path miktarı */
+  --chamfer-sm: 8px;
+  --chamfer-md: 14px;
+  --chamfer-lg: 22px;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+
+  /* Gölge YOK */
+  --shadow-card: none;
+  --shadow-glow: none;
+
+  /* Hızlı / anlık geçişler — makine gibi */
+  --transition: 75ms steps(2, end);
+  --transition-fast: 60ms linear;
+
+  /* Tipografi */
+  --font-sans: 'Space Grotesk', 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+  --font-family: var(--font-sans);
+}
+
+/* =============================================================
+   Reset & Base
+============================================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0 !important; /* yuvarlak köşe kesinlikle yasak */
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  min-height: 100vh;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+}
+
+a { color: inherit; }
+
+::selection {
+  background: var(--raw-neon);
+  color: var(--raw-black);
+}
+
+/* Lucide ikonları — köşeli/keskin görünüm için linecap/linejoin sıfırla */
+svg.lucide {
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* =============================================================
+   Tipografi Yardımcıları
+============================================================= */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.meta-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.highlight-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--raw-neon);
+  color: var(--raw-black);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+}
+
+/* =============================================================
+   Üst Meta Bar (topbar) — sol/sağ teknik etiketler
+============================================================= */
+.meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px var(--space-xl);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--raw-black);
+}
+
+.meta-bar span {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+.meta-bar .status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--raw-neon);
+  margin-right: 6px;
+  animation: dot-blink 1.2s steps(1) infinite;
+}
+
+@keyframes dot-blink {
+  0%, 49%  { opacity: 1; }
+  50%, 100%{ opacity: 0.25; }
+}
+
+/* =============================================================
+   Navigation Bar
+============================================================= */
+.navbar {
+  background: var(--raw-black);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md) var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  color: var(--color-text-primary);
+  transition: color var(--transition);
+  text-transform: uppercase;
+}
+
+.navbar-brand:hover { color: var(--color-accent); }
+
+.navbar-brand .brand-icon {
+  color: var(--raw-neon);
+  display: inline-flex;
+}
+
+.navbar-brand .brand-badge {
+  background: var(--raw-neon);
+  color: var(--raw-black);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 5px 100%, 0 calc(100% - 5px));
+}
+
+.navbar-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  list-style: none;
+}
+
+.nav-link {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid transparent;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.nav-link:hover {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-border);
+}
+
+.nav-link.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.nav-auth-required { display: none; }
+.nav-guest-only    { display: none; }
+
+/* =============================================================
+   Ana İçerik Alanı
+============================================================= */
+.main-content {
+  flex: 1;
+  padding: var(--space-xl);
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* =============================================================
+   Kart Bileşeni — keskin kesik köşe
+============================================================= */
+.card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  padding: var(--space-xl);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-md)), calc(100% - var(--chamfer-md)) 100%, 0 100%);
+}
+
+.card-header {
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.card-subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  margin-top: var(--space-xs);
+}
+
+/* =============================================================
+   Form Bileşenleri
+============================================================= */
+.form-group {
+  margin-bottom: var(--space-md);
+}
+
+.form-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px var(--space-md);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  transition: border-color var(--transition), background var(--transition);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-sm)), calc(100% - var(--chamfer-sm)) 100%, 0 100%);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.form-control::placeholder {
+  color: var(--color-text-muted);
+}
+
+select.form-control {
+  cursor: pointer;
+}
+
+/* =============================================================
+   Buton Bileşenleri
+============================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: 10px var(--space-lg);
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-sm)), calc(100% - var(--chamfer-sm)) 100%, 0 100%);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--raw-black);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--raw-white);
+  border: 1px solid var(--color-border);
+}
+
+.btn-danger:hover:not(:disabled) {
+  border-color: var(--raw-white);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-full { width: 100%; }
+
+.btn svg.lucide { width: 15px; height: 15px; }
+
+/* =============================================================
+   Uyarı / Bildirim Bileşeni
+============================================================= */
+.alert {
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  margin-bottom: var(--space-md);
+  display: none;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.alert.show { display: flex; }
+
+.alert-error {
+  border-color: var(--raw-white);
+  color: var(--raw-white);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,0.03) 0 10px,
+    transparent 10px 20px
+  );
+}
+
+.alert-success {
+  border-color: var(--raw-neon);
+  color: var(--raw-neon);
+}
+
+.alert-info {
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+/* =============================================================
+   Durum Etiketleri (Badge / Tag)
+   Hue yok — sadece dolgu / kenarlık / desen ile ayrım.
+============================================================= */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 5px 100%, 0 calc(100% - 5px));
+}
+
+.badge-pending {
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.badge-processing {
+  border-color: var(--raw-neon);
+  color: var(--raw-neon);
+  animation: badge-pulse 900ms steps(1) infinite;
+}
+
+.badge-processed {
+  background: var(--raw-neon);
+  border-color: var(--raw-neon);
+  color: var(--raw-black);
+}
+
+.badge-reviewed {
+  background: var(--raw-neon);
+  border-color: var(--raw-neon);
+  color: var(--raw-black);
+}
+
+.badge-failed {
+  border: 2px solid var(--raw-white);
+  color: var(--raw-white);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--raw-black) 0 6px,
+    #1a1a1a 6px 12px
+  );
+}
+
+@keyframes badge-pulse {
+  0%, 49%  { opacity: 1; }
+  50%, 100%{ opacity: 0.45; }
+}
+
+/* =============================================================
+   Yükleniyor Göstergesi — daire yerine adım tabanlı kare blok
+============================================================= */
+.spinner {
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  display: none;
+  animation: block-blink 500ms steps(1) infinite;
+}
+
+.spinner.show { display: inline-block; }
+
+@keyframes block-blink {
+  0%, 49%  { opacity: 1; }
+  50%, 100%{ opacity: 0.15; }
+}
+
+/* =============================================================
+   Yardımcı Sınıflar
+============================================================= */
+.text-center  { text-align: center; }
+.text-muted   { color: var(--color-text-secondary); }
+.text-small   { font-size: 0.875rem; }
+.mt-md        { margin-top: var(--space-md); }
+.mt-lg        { margin-top: var(--space-lg); }
+.mb-md        { margin-bottom: var(--space-md); }
+.divider      { border: none; border-top: 1px solid var(--color-border); margin: var(--space-lg) 0; }
+
+/* =============================================================
+   Footer
+============================================================= */
+.footer {
+  text-align: center;
+  padding: var(--space-lg);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-top: 1px solid var(--color-border);
+}

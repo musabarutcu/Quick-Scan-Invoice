@@ -1,0 +1,52 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+sqlalchemy==2.0.35
+alembic==1.13.3
+pydantic[email]==2.9.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+jinja2==3.1.4
+aiofiles==24.1.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# ============================================================
+# Aşama 2 — OCR ve AI Entegrasyonu
+# ============================================================
+
+# OCR: Görüntüden metin çıkarma
+# pytesseract: Python Tesseract sarmalayıcısı
+# Tesseract binary'si ayrıca kurulmalı:
+#   Windows: winget install UB-Mannheim.TesseractOCR
+#   Ubuntu:  apt install tesseract-ocr tesseract-ocr-tur
+pytesseract==0.3.13
+
+# Pillow: Görüntü işleme (gri tonlama, kontrast artırma, keskinleştirme)
+# OCR öncesi görüntü kalitesini artırmak için kullanılır
+Pillow==10.4.0
+
+# pdf2image: PDF sayfalarını PIL Image nesnelerine çevirir
+# Tesseract direkt PDF okuyamaz; her sayfayı görüntüye çevirip OCR uygularız
+# poppler-utils ayrıca kurulmalı:
+#   Windows: https://github.com/oschwartz10612/poppler-windows
+#   Ubuntu:  apt install poppler-utils
+pdf2image==1.17.0
+
+# LangChain: AI iş akışı çerçevesi
+langchain==0.3.25
+langchain-core==0.3.65
+
+# Google Gemini entegrasyonu (LangChain üzerinden)
+# gemini-3.8-flash modeli kullanılacak
+langchain-google-genai==2.1.4
+
+# ============================================================
+# Geliştirme / Test Bağımlılıkları
+# ============================================================
+# pytest: Python test çerçevesi
+# httpx: FastAPI TestClient'ın kullandığı async HTTP istemcisi
+# anyio: Async test desteği için (pytest-asyncio'nun bağımlılığı)
+pytest>=8.3
+httpx>=0.27
+anyio>=4.4
+pytest-asyncio>=0.24

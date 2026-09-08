@@ -1,0 +1,574 @@
+{% extends "layout.html" %}
+{#
+  templates/invoices.html — Fatura Listesi Sayfası
+  Kullanıcının tüm faturalarını tablo şeklinde gösterir.
+  Veriler sayfa yüklendikten sonra fetch API ile çekilir.
+#}
+
+{% block title %}Faturalarım{% endblock %}
+
+{% block page_meta %}01 . DASHBOARD{% endblock %}
+
+{% block extra_styles %}
+<style>
+  /* Sayfa Başlığı */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-xl);
+    flex-wrap: wrap;
+    gap: var(--space-md);
+  }
+
+  .page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .page-header p {
+    font-family: var(--font-mono);
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+    margin-top: 4px;
+  }
+
+  /* İstatistik Kartları */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+  }
+
+  .stat-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    padding: var(--space-md) var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    transition: border-color var(--transition);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--chamfer-sm)), calc(100% - var(--chamfer-sm)) 100%, 0 100%);
+  }
+
+  .stat-card:hover { border-color: var(--color-accent); }
+
+  .stat-icon {
+    color: var(--raw-neon);
+    opacity: 0.9;
+  }
+
+  .stat-icon svg { width: 26px; height: 26px; }
+
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--color-text-primary);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+  }
+
+  /* Arama ve Filtre */
+  .toolbar {
+    display: flex;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  /* Tablo */
+  .table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+  }
+
+  .invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .invoice-table th {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--space-md) var(--space-lg);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  .invoice-table td {
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    vertical-align: middle;
+  }
+
+  .invoice-table tr:last-child td { border-bottom: none; }
+
+  .invoice-table tbody tr {
+    transition: background var(--transition);
+    cursor: pointer;
+  }
+
+  .invoice-table tbody tr:hover {
+    background: rgba(212,255,0,0.04);
+  }
+
+  /* Boş durum */
+  .empty-state {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--color-text-secondary);
+  }
+
+  .empty-state .empty-icon {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-md);
+    display: flex;
+    justify-content: center;
+  }
+
+  .empty-state .empty-icon svg { width: 44px; height: 44px; }
+
+  .empty-state h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-sm);
+  }
+
+  /* Tutar sütunu */
+  .amount-cell {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Aksiyon butonları */
+  .action-btns {
+    display: flex;
+    gap: var(--space-sm);
+  }
+
+  .btn-icon {
+    padding: 6px 8px;
+  }
+
+  .btn-icon svg { width: 14px; height: 14px; }
+
+  /* Yükleniyor durumu */
+  .loading-row td {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Sayfa Başlığı -->
+<div class="page-header">
+  <div>
+    <h1><span data-lucide="layout-list" style="width:24px;height:24px;color:var(--raw-neon);"></span>Faturalarım</h1>
+    <p>&gt; Yüklediğiniz ve oluşturduğunuz tüm faturalar</p>
+  </div>
+  <div style="display: flex; gap: 12px;">
+    <a href="/invoices/add" class="btn btn-primary">
+      <span data-lucide="plus" style="width:14px;height:14px;"></span>
+      Fatura Ekle
+    </a>
+  </div>
+</div>
+
+<!-- İstatistik Kartları -->
+<div class="stats-grid" id="stats-grid">
+  <div class="stat-card">
+    <span class="stat-icon" data-lucide="file-text"></span>
+    <div>
+      <div class="stat-value" id="stat-total">-</div>
+      <div class="stat-label">Toplam Fatura</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon" data-lucide="clock"></span>
+    <div>
+      <div class="stat-value" id="stat-pending">-</div>
+      <div class="stat-label">Beklemede</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon" data-lucide="check-circle"></span>
+    <div>
+      <div class="stat-value" id="stat-reviewed">-</div>
+      <div class="stat-label">İncelendi</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon" data-lucide="wallet"></span>
+    <div>
+      <div class="stat-value" id="stat-amount">-</div>
+      <div class="stat-label">Toplam Tutar</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <input
+    type="search"
+    id="search-input"
+    class="form-control search-input"
+    placeholder="Tedarikçi adına göre ara..."
+    oninput="filterInvoices()"
+  >
+  <select id="status-filter" class="form-control" style="max-width: 200px;" onchange="filterInvoices()">
+    <option value="">Tüm Durumlar</option>
+    <option value="pending">Beklemede</option>
+    <option value="processed">İşlendi</option>
+    <option value="reviewed">İncelendi</option>
+  </select>
+</div>
+
+<!-- Hata mesajı -->
+<div class="alert alert-error" id="alert-message"></div>
+
+<!-- Fatura Tablosu -->
+<div class="table-wrapper">
+  <table class="invoice-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Tedarikçi</th>
+        <th>Fatura Tarihi</th>
+        <th>Toplam</th>
+        <th>Durum</th>
+        <th>Oluşturulma</th>
+        <th>İşlemler</th>
+      </tr>
+    </thead>
+    <tbody id="invoices-tbody">
+      <tr class="loading-row">
+        <td colspan="7">// Faturalar yükleniyor...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/*
+ * invoices.html JavaScript'i
+ * 
+ * Sayfa yüklendiğinde API'den faturaları çeker,
+ * tabloya render eder ve arama/filtre işlemlerini yönetir.
+ */
+
+// Tüm fatura verileri (filtreleme için saklanır)
+let allInvoices = [];
+
+// Sayfa yüklendiğinde çalış
+document.addEventListener('DOMContentLoaded', function() {
+  // Giriş kontrolü — base.js'deki requireAuth fonksiyonu
+  if (typeof requireAuth === 'function') {
+    requireAuth();
+  }
+  loadInvoices();
+});
+
+
+async function loadInvoices() {
+  const token = localStorage.getItem('access_token');
+  const tbody = document.getElementById('invoices-tbody');
+
+  try {
+    const response = await fetch('/invoices', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.status === 401) {
+      // Token süresi dolmuş — giriş sayfasına yönlendir
+      localStorage.clear();
+      window.location.href = '/auth/login';
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error('Faturalar yüklenemedi');
+    }
+
+    allInvoices = await response.json();
+    renderInvoices(allInvoices);
+    updateStats(allInvoices);
+    startListPolling(); // İşleniyor fatura varsa polling başlat
+
+  } catch (error) {
+    tbody.innerHTML = `
+      <tr class="loading-row">
+        <td colspan="7" style="color: var(--raw-white);">
+          HATA: Faturalar yüklenirken sorun oluştu.
+        </td>
+      </tr>
+    `;
+    console.error('Load invoices error:', error);
+  }
+}
+
+
+function renderInvoices(invoices) {
+  const tbody = document.getElementById('invoices-tbody');
+
+  if (invoices.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7">
+          <div class="empty-state">
+            <div class="empty-icon"><span data-lucide="inbox"></span></div>
+            <h3>Henüz fatura yok</h3>
+            <p>İlk faturanızı ekleyin veya yükleyin.</p>
+            <a href="/invoices/add" class="btn btn-primary mt-md">+ Fatura Ekle</a>
+          </div>
+        </td>
+      </tr>
+    `;
+    refreshIcons();
+    return;
+  }
+
+  tbody.innerHTML = invoices.map(inv => `
+    <tr onclick="window.location.href='/invoices/${inv.id}/detail'" title="Detay için tıklayın">
+      <td style="color: var(--color-text-muted);">#${inv.id}</td>
+      <td>
+        <strong>${escapeHtml(inv.vendor_name || '—')}</strong>
+      </td>
+      <td style="color: var(--color-text-secondary);">
+        ${inv.invoice_date || '—'}
+      </td>
+      <td class="amount-cell">
+        ${inv.total_amount != null ? formatCurrency(inv.total_amount) : '—'}
+      </td>
+      <td>
+        <span class="badge badge-${inv.status}">${translateStatus(inv.status)}</span>
+      </td>
+      <td style="color: var(--color-text-muted); font-size: 0.8rem;">
+        ${formatDate(inv.created_at)}
+      </td>
+      <td onclick="event.stopPropagation()">
+        <div class="action-btns">
+          <button
+            class="btn btn-secondary btn-icon"
+            onclick="editInvoice(${inv.id})"
+            title="Düzenle"
+          ><span data-lucide="edit-3"></span></button>
+          <button
+            class="btn btn-danger btn-icon"
+            onclick="deleteInvoice(${inv.id})"
+            title="Sil"
+          ><span data-lucide="trash-2"></span></button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  refreshIcons();
+}
+
+
+function updateStats(invoices) {
+  document.getElementById('stat-total').textContent = invoices.length;
+  document.getElementById('stat-pending').textContent =
+    invoices.filter(i => i.status === 'pending').length;
+  document.getElementById('stat-reviewed').textContent =
+    invoices.filter(i => i.status === 'reviewed').length;
+
+  const total = invoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  document.getElementById('stat-amount').textContent = formatCurrency(total);
+}
+
+
+function filterInvoices() {
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const status = document.getElementById('status-filter').value;
+
+  const filtered = allInvoices.filter(inv => {
+    const matchSearch = !search ||
+      (inv.vendor_name || '').toLowerCase().includes(search);
+    const matchStatus = !status || inv.status === status;
+    return matchSearch && matchStatus;
+  });
+
+  renderInvoices(filtered);
+}
+
+
+async function deleteInvoice(id) {
+  if (!confirm(`#${id} numaralı faturayı silmek istediğinizden emin misiniz?`)) return;
+
+  const token = localStorage.getItem('access_token');
+
+  try {
+    const response = await fetch(`/invoices/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.ok || response.status === 204) {
+      // Listeden kaldır
+      allInvoices = allInvoices.filter(i => i.id !== id);
+      renderInvoices(allInvoices);
+      updateStats(allInvoices);
+    } else {
+      const data = await response.json();
+      alert(data.detail || 'Silme işlemi başarısız.');
+    }
+  } catch (error) {
+    alert('Sunucuya bağlanılamadı.');
+  }
+}
+
+
+function editInvoice(id) {
+  window.location.href = `/invoices/add?edit=${id}`;
+}
+
+
+/* --- Yardımcı Fonksiyonlar --- */
+
+function translateStatus(status) {
+  const map = {
+    pending:    'Beklemede',
+    processing: 'İşleniyor',
+    processed:  'İşlendi',
+    reviewed:   'İncelendi',
+    failed:     'Başarısız',
+  };
+  return map[status] || status;
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency', currency: 'TRY', minimumFractionDigits: 2
+  }).format(amount);
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('tr-TR', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+
+/* =============================================================
+ * Liste Polling Mekanizması
+ *
+ * Fatura listesinde "processing" durumunda faturalar varsa
+ * 5 saniyede bir /invoices/{id}/status kontrol edilir.
+ * Durum değişince satır otomatik güncellenir.
+ *
+ * NEDEN SADECE LİSTEDE?
+ * Detay sayfası kendi polling'ini yönetiyor (invoice_detail.html).
+ * Liste sayfasında hafif polling: Sadece satır badge'ini günceller.
+ * ============================================================= */
+let listPollingInterval = null;
+
+function startListPolling() {
+  // Zaten çalışıyorsa tekrar başlatma
+  if (listPollingInterval) return;
+
+  const hasProcessing = allInvoices.some(
+    i => i.status === 'processing' || i.status === 'pending'
+  );
+
+  if (!hasProcessing) return;
+
+  console.log('[Liste Polling] Başlatıldı');
+
+  listPollingInterval = setInterval(async () => {
+    const processingInvoices = allInvoices.filter(
+      i => i.status === 'processing' || i.status === 'pending'
+    );
+
+    if (processingInvoices.length === 0) {
+      // Hiç işleniyor fatura kalmadı, polling'i durdur
+      clearInterval(listPollingInterval);
+      listPollingInterval = null;
+      console.log('[Liste Polling] Durduruldu (İşleniyor fatura kalmadı)');
+      return;
+    }
+
+    const token = localStorage.getItem('access_token');
+
+    // Paralel status sorgusu — her processing fatura için aynı anda
+    const updates = await Promise.allSettled(
+      processingInvoices.map(inv =>
+        fetch(`/invoices/${inv.id}/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(r => r.ok ? r.json() : null)
+      )
+    );
+
+    let anyChanged = false;
+
+    updates.forEach((result, idx) => {
+      if (result.status !== 'fulfilled' || !result.value) return;
+      const statusData = result.value;
+      const inv = processingInvoices[idx];
+
+      if (statusData.status !== inv.status) {
+        // Listedeki faturayı güncelle
+        const invIndex = allInvoices.findIndex(i => i.id === inv.id);
+        if (invIndex !== -1) {
+          allInvoices[invIndex] = { ...allInvoices[invIndex], ...statusData };
+          anyChanged = true;
+          console.log(`[Liste Polling] #${inv.id}: ${inv.status} → ${statusData.status}`);
+        }
+      }
+    });
+
+    if (anyChanged) {
+      renderInvoices(allInvoices);
+      updateStats(allInvoices);
+    }
+
+  }, 5000); // 5 saniyede bir
+}
+
+window.addEventListener('beforeunload', () => {
+  if (listPollingInterval) clearInterval(listPollingInterval);
+});
+</script>
+{% endblock %}
